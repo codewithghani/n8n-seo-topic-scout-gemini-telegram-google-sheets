@@ -1,0 +1,717 @@
+{
+  "name": "SEO Topic Scout - Weekly",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "eef24455-0ac8-40c1-a6af-9c5495043399",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Lyra FinX Topic Scout"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Seeds"
+        },
+        "options": {}
+      },
+      "id": "b7abd7c9-e86f-43f3-860b-7d069e62e95e",
+      "name": "Get Seeds",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=pk&q={{ encodeURIComponent($json.seed_keyword) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "450b0cf6-67b2-426c-86f8-4fadd87706c1",
+      "name": "Autocomplete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  try {\n    const parsed = JSON.parse(item.json.data);\n    for (const s of (parsed[1] || [])) out.push(s);\n  } catch (e) {}\n}\nconst unique = [...new Set(out)];\nreturn [{ json: { autocomplete: unique.join('\\n'), count: unique.length } }];"
+      },
+      "id": "750a0696-2858-4bbe-be24-15c7a5d5c37a",
+      "name": "Collect autocomplete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/FinancialPlanning/top/.rss?t=week",
+        "options": {}
+      },
+      "id": "afe8f361-ecfc-43c8-8a91-6d1ee6712a75",
+      "name": "RSS Read1",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        864,
+        -208
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/personalfinance/top/.rss?t=week",
+        "options": {}
+      },
+      "id": "76678ecf-04b9-4907-8510-76a7ac049735",
+      "name": "RSS Read2",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        864,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/budgeting/top/.rss?t=week",
+        "options": {}
+      },
+      "id": "866b6e25-9b80-485e-923a-afe39a1e715d",
+      "name": "RSS Read3",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        864,
+        192
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "894a6386-8aff-4392-8368-a3041d4039be",
+      "name": "Merge Reddit",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1088,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Lyra FinX Topic Scout"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 709222288,
+          "mode": "list",
+          "cachedResultName": "Existing posts"
+        },
+        "options": {}
+      },
+      "id": "21dab2c7-ad4d-43e4-83fe-974619de88b6",
+      "name": "Get existing post",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1344,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const seeds = $('Get Seeds').all()\n  .map(i => `${i.json.Theme}: ${i.json.seed_keyword}`).join('\\n');\n\nconst autocomplete = $('Collect autocomplete').first().json.autocomplete;\n\nconst reddit = $('Merge Reddit').all()\n  .filter(i => i.json.title)\n  .slice(0, 30)\n  .map(i => `- ${i.json.title}`).join('\\n');\n\nconst existing = $('Get existing post').all()\n  .map(i => i.json.title).filter(Boolean).join('\\n') || '(none yet)';\n\nreturn [{ json: { seeds, autocomplete, reddit, existing } }];"
+      },
+      "id": "604c2e34-bdd6-4569-bad3-41b3879315bc",
+      "name": "Build prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an SEO content strategist for Lyra FinX, an AI-focused personal finance brand for a South Asian audience (Pakistan first).\n\nUsing only the signals below, propose 10 blog topic candidates.\n\nCore themes and seed keywords:\n{{ $json.seeds }}\n\nGoogle Autocomplete suggestions (what people type):\n{{ $json.autocomplete }}\n\nTrending Reddit questions this week:\n{{ $json.reddit }}\n\nPosts we already published (do NOT repeat or closely duplicate these):\n{{ $json.existing }}\n\nScoring rules:\n- fit_score (1-10): how well the topic fits Lyra FinX (AI tools for money, practical personal finance, Pakistan or South Asia relevance).\n- opportunity_score (1-10): how attractive the topic looks given the signals, a low-competition angle, and clear search intent.\n- difficulty_guess: low, medium or high. This is a rough judgement, NOT measured data.\n- source_signal: autocomplete, reddit or both.\n- Never invent search volumes or statistics.\n- Avoid topics that need personalised financial advice (specific stock picks, guaranteed returns). Prefer educational angles.\n- Each title must be specific and click-worthy, under 70 characters where possible.\n\nOutput format: respond with raw JSON only. Do NOT wrap it in markdown code fences, do not add backticks, and do not write any text before or after the JSON.",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "8e0b76a2-73fc-4d6c-a0ac-dc2283f9e966",
+      "name": "Score topics",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1792,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "01196fe7-3019-45c5-ac7a-3dffa398c52f",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1680,
+        208
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"topics\": [\n    {\n      \"title\": \"How to Build a Budget in PKR When Your Income Changes Monthly\",\n      \"primary_keyword\": \"budget with irregular income\",\n      \"search_intent\": \"informational\",\n      \"difficulty_guess\": \"medium\",\n      \"fit_score\": 8,\n      \"opportunity_score\": 7,\n      \"source_signal\": \"autocomplete\",\n      \"angle\": \"Practical PKR examples plus a free AI-assisted tracker\",\n      \"why\": \"Autocomplete shows steady interest and few Pakistan-focused guides exist\"\n    }\n  ]\n}"
+      },
+      "id": "eccb53ea-f53d-4a34-8889-ac219b3ebac3",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1936,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const topics = $input.first().json.output.topics || [];\nconst stamp = $now.toFormat('yyyy-MM-dd-HHmm');\n\nreturn topics\n  .map(t => ({ ...t, total_score: (Number(t.fit_score) || 0) + (Number(t.opportunity_score) || 0) }))\n  .sort((a, b) => b.total_score - a.total_score)\n  .slice(0, 5)\n  .map((t, i) => ({ json: { id: `${stamp}_${i + 1}`, date: stamp, rank: i + 1, ...t, status: 'suggested' } }));"
+      },
+      "id": "c44faa3f-7242-490a-8ddc-4cb3b085ff5d",
+      "name": "Pick top 5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Lyra FinX Topic Scout"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1469301102,
+          "mode": "list",
+          "cachedResultName": "Topic log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "rank",
+              "displayName": "rank",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "primary_keyword",
+              "displayName": "primary_keyword",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "search_intent",
+              "displayName": "search_intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "difficulty_guess",
+              "displayName": "difficulty_guess",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fit_score",
+              "displayName": "fit_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "opportunity_score",
+              "displayName": "opportunity_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "total_score",
+              "displayName": "total_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "source_signal",
+              "displayName": "source_signal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "angle",
+              "displayName": "angle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "why",
+              "displayName": "why",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "33fbd2d0-9c86-45cb-973c-d383f8324b91",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2384,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst cap = s => { const v = String(s ?? '').trim(); return v ? v.charAt(0).toUpperCase() + v.slice(1) : '-'; };\nconst topics = $('Pick top 5').all().map(i => i.json);\nconst date = topics[0]?.date || '';\nconst line = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';\n\nconst parts = [];\nparts.push('<b>Lyra FinX \u00b7 Weekly topic picks</b>');\nparts.push('<i>' + esc(date) + ' \u00b7 ' + topics.length + ' ideas, best first</i>');\nparts.push(line);\n\nfor (const t of topics) {\n  parts.push('<b>' + t.rank + ') ' + esc(t.title) + '</b>');\n  parts.push('Score <b>' + t.total_score + '/20</b> \u00b7 ' + esc(cap(t.difficulty_guess)) + ' \u00b7 ' + esc(cap(t.search_intent)));\n  parts.push('Keyword: <code>' + esc(t.primary_keyword) + '</code>');\n  parts.push('Angle: ' + esc(t.angle));\n  parts.push('Why: ' + esc(t.why));\n  parts.push(line);\n}\n\nparts.push('<b>How to reply</b>');\nparts.push('\u2022 Reply with the numbers to write, e.g. <code>1 3</code>');\nparts.push('\u2022 Reply <code>all</code> to approve every topic');\nparts.push('\u2022 Reply <code>none</code> to skip this week');\nparts.push('');\nparts.push('<i>Difficulty is an AI estimate, not measured data.</i>');\n\nreturn [{ json: { text: parts.join('\\n'), date } }];"
+      },
+      "id": "3c72a83d-59cc-4046-945c-38b2f6a98f01",
+      "name": "Build Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.text }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Approve 1",
+                    "additionalFields": {
+                      "callback_data": "=approve|{{ $('Pick top 5').first().json.date }}|1"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Approve 2",
+                    "additionalFields": {
+                      "callback_data": "=approve|{{ $('Pick top 5').first().json.date }}|2"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Approve 3",
+                    "additionalFields": {
+                      "callback_data": "=approve|{{ $('Pick top 5').first().json.date }}|3"
+                    }
+                  }
+                ]
+              }
+            },
+            {}
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2832,
+        0
+      ],
+      "id": "21ad7b06-19ee-4313-94a7-9cb414955b7c",
+      "name": "Send to Telegram",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_CREDENTIAL_NAME"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Seeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Seeds": {
+      "main": [
+        [
+          {
+            "node": "Autocomplete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Autocomplete": {
+      "main": [
+        [
+          {
+            "node": "Collect autocomplete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect autocomplete": {
+      "main": [
+        [
+          {
+            "node": "RSS Read1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read1": {
+      "main": [
+        [
+          {
+            "node": "Merge Reddit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read2": {
+      "main": [
+        [
+          {
+            "node": "Merge Reddit",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "RSS Read3": {
+      "main": [
+        [
+          {
+            "node": "Merge Reddit",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Reddit": {
+      "main": [
+        [
+          {
+            "node": "Get existing post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get existing post": {
+      "main": [
+        [
+          {
+            "node": "Build prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build prompt": {
+      "main": [
+        [
+          {
+            "node": "Score topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score topics": {
+      "main": [
+        [
+          {
+            "node": "Pick top 5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Score topics",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Score topics",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick top 5": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Messages": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": [],
+  "tags": []
+}
